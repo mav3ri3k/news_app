@@ -19,7 +19,6 @@ async fn main() {
         .route("/comment/:id", get(api::comment))
         .route("/topstories", get(api::topstories))
         .route("/cache_top", get(api::cache));
-    //.route("/topstories", get(topstories()))
     //.route("/newstories", get(newstories()));
 
     // run our app with hyper, listening globally on port 3000
