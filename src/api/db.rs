@@ -19,7 +19,7 @@ impl Clean for String {
     }
 }
 #[derive(Debug)]
-/// Internally used to working with cache
+/// Internally used to work with cache
 struct Search {
     hash: u32,
     word: String,

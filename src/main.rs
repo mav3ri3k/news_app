@@ -1,9 +1,11 @@
 #![cfg_attr(doc_cfg, feature(doc_cfg))]
-//! Implementation of Rest API for a sudo news app
-//! Written in rust -> To start you need cargo toolchain install
-//! Start in dev mode using command `cargo run`
-//! It will start server at `localhost:3000'
-//! Refer to `localhost:3000/docs' for API documentation
+//! Implementation of Rest API for a sudo news app.
+//! It is written in rust. 
+//!
+//! To start you need rust toolchain installed.
+//!  Start in dev mode using command `cargo run`. 
+//!  It will start server at `localhost:3000`. 
+//!  Refer to `localhost:3000/docs` for API documentation.
 
 use axum::{routing::get, Router};
 use utoipa::OpenApi;
