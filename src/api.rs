@@ -119,9 +119,6 @@ pub struct TopStories {
         (status = 200, description = "Return id to top stories", body = User),
         (status = NOT_FOUND, description = "Bad response"),
         ),
-        params(
-            ("id" = u32, Path, description = "Find top stories on hn"),
-            )
     )]
 #[debug_handler]
 pub async fn topstories() -> Json<TopStories> {
@@ -142,14 +139,11 @@ pub struct CacheStories {
 
 #[utoipa::path(
     get,
-    path="/cache",
+    path="/cache_top",
     responses(
         (status = 200, description = "Cache created for top stories", body = User),
         (status = NOT_FOUND, description = "Bad response"),
         ),
-        params(
-            ("id" = u32, Path, description = "Cache top stories for searching"),
-            )
     )]
 #[debug_handler]
 pub async fn cache() -> String {
@@ -161,7 +155,35 @@ pub async fn cache() -> String {
         .await
         .unwrap();
 
-    let stories_ids: Vec<i32> = serde_json::from_str(&body.as_str()).unwrap();
+    let stories_ids: Vec<u32> = serde_json::from_str(&body.as_str()).unwrap();
     db::create_cache(&stories_ids).await;
     "Done".to_string()
+}
+
+#[derive(Serialize, Deserialize, utoipa::ToSchema)]
+pub struct SearchResults {
+    story_ids: Vec<u32>,
+}
+
+#[utoipa::path(
+    get,
+    path="/search/story/{word}",
+    responses(
+        (status = 200, description = "Story ids corresponding stories found", body = User),
+        (status = NOT_FOUND, description = "Bad response"),
+        ),
+        params(
+            ("word" = string, Path, description = "Keyword to search in story titles"),
+            )
+    )]
+#[debug_handler]
+pub async fn search_story(Path(word): Path<String>) -> Json<SearchResults> {
+    match db::search_word(word) {
+        Some(ids) => Json(SearchResults {
+           story_ids: ids, 
+        }),
+        None => Json(SearchResults { 
+            story_ids: vec![],
+        }),
+    }
 }

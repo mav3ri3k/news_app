@@ -1,6 +1,6 @@
 use crate::api::Story;
-use rusqlite::{Connection, Result};
 use fasthash::city;
+use rusqlite::{Connection, Result};
 
 pub trait Clean {
     fn clean(&self) -> Self;
@@ -17,14 +17,14 @@ impl Clean for String {
         tmp
     }
 }
-
+#[derive(Debug)]
 struct Search {
-    hash: i32,
+    hash: u32,
     word: String,
-    story_ids: Vec<i32>,
+    story_ids: Vec<u32>,
 }
 
-pub async fn create_cache(stories_ids: &Vec<i32>) {
+pub async fn create_cache(stories_ids: &Vec<u32>) {
     // create connection and set up table
     let db = Connection::open("cache.db").unwrap();
     // stories
@@ -55,39 +55,86 @@ pub async fn create_cache(stories_ids: &Vec<i32>) {
         i += 1;
         let request_path = format!("https://hacker-news.firebaseio.com/v0/item/{id}.json");
         let body = reqwest::get(request_path)
-            .await.unwrap()
+            .await
+            .unwrap()
             .text()
-            .await.unwrap();
+            .await
+            .unwrap();
 
-        let story: Story = serde_json::from_str(&body.as_str()).unwrap();
+        let story: Story = match serde_json::from_str(&body.as_str()) {
+            Ok(story) => story,
+            Err(_) => continue,
+        };
 
         db.execute(
             "INSERT OR IGNORE INTO stories (id, story) VALUES (?1, ?2)",
             (&story.id, serde_json::to_vec(&story).unwrap()),
-        ).unwrap();
+        )
+        .unwrap();
 
         let words = split(&story.title.clean());
         for word in words {
-            let mut stmt = db.prepare(
-                "SELECT id, name, data FROM person WHERE person.hash (?1)").unwrap();
-            let search_iter = stmt.query_map([city::hash32(word.clone())], |row| {
-                let ids: Vec<u8> = row.get(2).unwrap();
-                Ok( Search {
-                    hash: row.get(0).unwrap(),
-                    word: row.get(1).unwrap(),
-                    story_ids: serde_json::from_slice(&ids).unwrap(),
-                })
-            }).unwrap();
-            if search_iter.
-
+            match search_cache_word(&db, &word) {
+                Some(result) => match result {
+                    Ok(search) => {
+                        let mut v: Vec<u32> = Vec::new();
+                        for tmp_id in search.story_ids {
+                            if tmp_id == id.clone() {
+                                continue;
+                            }
+                            v.push(tmp_id);
+                        }
                         db.execute(
-                "INSERT OR IGNORE INTO search (hash, word, story_ids) VALUES (?1, ?2, ?3)",
-                (city::hash32(word.clone()), 
-                 &word, 
-                 serde_json::to_vec(&vec![story.id]).unwrap()),
-                ).unwrap();
+                            "UPDATE search
+                            SET (hash, word, story_ids) = (?1, ?2, ?3)
+                            WHERE search.hash = (?4)
+                            ",
+                            (
+                                search.hash,
+                                search.word,
+                                serde_json::to_vec(&v).unwrap(),
+                                search.hash,
+                            ),
+                        )
+                        .unwrap();
+                    }
+                    Err(_) => (),
+                },
+                None => {
+                    db.execute(
+                        "insert or ignore into search (hash, word, story_ids) values (?1, ?2, ?3)",
+                        (
+                            city::hash32(word.clone()),
+                            &word,
+                            serde_json::to_vec(&vec![story.id]).unwrap(),
+                        ),
+                    )
+                    .unwrap();
+                }
+            }
         }
     }
+}
+
+fn search_cache_word(
+    db: &rusqlite::Connection,
+    word: &String,
+) -> Option<Result<Search, rusqlite::Error>> {
+    let mut stmt = db
+        .prepare("SELECT * FROM search WHERE search.hash = (?1)")
+        .unwrap();
+    let mut search_iter = stmt
+        .query_map([city::hash32(word.clone())], |row| {
+            let ids: Vec<u8> = row.get(2).unwrap();
+            Ok(Search {
+                hash: row.get(0).unwrap(),
+                word: row.get(1).unwrap(),
+                story_ids: serde_json::from_slice(&ids).unwrap(),
+            })
+        })
+        .unwrap();
+
+    search_iter.next()
 }
 
 fn split(string: &String) -> Vec<String> {
@@ -95,13 +142,13 @@ fn split(string: &String) -> Vec<String> {
     let mut tmp = String::new();
 
     for c in string.chars() {
-        if c != ' ' || c != ':' || c != ',' {
+        if c != ' ' && c != ':' && c != ',' {
             tmp.push(c.to_ascii_lowercase());
         } else {
             if tmp.len() > 3 {
                 words.push(tmp.clone());
-                tmp.clear();
             }
+            tmp.clear();
         }
     }
     if tmp.len() > 3 {
@@ -109,4 +156,29 @@ fn split(string: &String) -> Vec<String> {
     }
 
     words
+}
+
+pub fn search_word(word: String ) -> Option<Vec<u32>> {
+    let db = Connection::open("cache.db").unwrap();
+    let mut stmt = db
+        .prepare("SELECT * FROM search WHERE search.hash = (?1)")
+        .unwrap();
+    let mut search_iter = stmt
+        .query_map([city::hash32(word.clone())], |row| {
+            let ids: Vec<u8> = row.get(2).unwrap();
+            Ok(Search {
+                hash: row.get(0).unwrap(),
+                word: row.get(1).unwrap(),
+                story_ids: serde_json::from_slice(&ids).unwrap(),
+            })
+        })
+        .unwrap();
+
+    match search_iter.next() {
+        Some(search) => match search {
+            Ok(search) => search.story_ids.into(),
+            Err(_) => None,
+        },
+        None => None,
+    }
 }
