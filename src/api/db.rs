@@ -2,6 +2,7 @@ use crate::api::Story;
 use fasthash::city;
 use rusqlite::{Connection, Result};
 
+/// Removes "'" from string, as sqlite consider it as special item
 pub trait Clean {
     fn clean(&self) -> Self;
 }
@@ -18,12 +19,14 @@ impl Clean for String {
     }
 }
 #[derive(Debug)]
+/// Internally used to working with cache
 struct Search {
     hash: u32,
     word: String,
     story_ids: Vec<u32>,
 }
 
+/// Initiate local cache database
 pub async fn create_cache(stories_ids: &Vec<u32>) {
     // create connection and set up table
     let db = Connection::open("cache.db").unwrap();
@@ -116,6 +119,7 @@ pub async fn create_cache(stories_ids: &Vec<u32>) {
     }
 }
 
+/// Internal helper function
 fn search_cache_word(
     db: &rusqlite::Connection,
     word: &String,
@@ -137,6 +141,7 @@ fn search_cache_word(
     search_iter.next()
 }
 
+/// Helper function to splite title into words and serve only normalized words
 fn split(string: &String) -> Vec<String> {
     let mut words = Vec::new();
     let mut tmp = String::new();
@@ -158,6 +163,7 @@ fn split(string: &String) -> Vec<String> {
     words
 }
 
+/// find given word in cache only
 pub fn search_word(word: String ) -> Option<Vec<u32>> {
     let db = Connection::open("cache.db").unwrap();
     let mut stmt = db

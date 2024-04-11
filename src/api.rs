@@ -2,9 +2,11 @@ use axum::{debug_handler, extract::Path, Json};
 use reqwest;
 use serde::{Deserialize, Serialize};
 
+/// Local database implementation in sqlite
 pub mod db;
 
 #[derive(Debug, Serialize, Deserialize, utoipa::ToSchema)]
+/// Schema for Story
 pub struct Story {
     by: String,
     descendants: i32,
@@ -28,6 +30,7 @@ pub struct Story {
             )
     )]
 #[debug_handler]
+/// Returns json object for story with corresponding id
 pub async fn story(Path(id): Path<i32>) -> Json<Story> {
     let request_path = format!("https://hacker-news.firebaseio.com/v0/item/{id}.json");
     let body = reqwest::get(request_path)
@@ -40,6 +43,7 @@ pub async fn story(Path(id): Path<i32>) -> Json<Story> {
 }
 
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
+/// Schema for Comment
 pub struct Comment {
     by: String,
     id: i32,
@@ -61,6 +65,7 @@ pub struct Comment {
             )
     )]
 #[debug_handler]
+/// Returns json object for comment with corresponding id
 pub async fn comment(Path(id): Path<i32>) -> Json<Comment> {
     let comment = Comment {
         by: "mav3ri3k".to_string(),
@@ -74,6 +79,7 @@ pub async fn comment(Path(id): Path<i32>) -> Json<Comment> {
 }
 
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
+/// Schema for User
 pub struct User {
     about: String,
     created: i32,
@@ -95,6 +101,7 @@ pub struct User {
             )
     )]
 #[debug_handler]
+/// Returns json object for user with corresponding id
 pub async fn user(Path(id): Path<i32>) -> Json<User> {
     let item = User {
         about: "What!".to_string(),
@@ -108,6 +115,7 @@ pub async fn user(Path(id): Path<i32>) -> Json<User> {
 }
 
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
+/// Schema for list of top story ids
 pub struct TopStories {
     stories_ids: Vec<i32>,
 }
@@ -121,6 +129,7 @@ pub struct TopStories {
         ),
     )]
 #[debug_handler]
+/// Returns json object for list of id for top stories
 pub async fn topstories() -> Json<TopStories> {
     let request_path = format!("https://hacker-news.firebaseio.com/v0/topstories.json");
     let body = reqwest::get(request_path)
@@ -133,6 +142,7 @@ pub async fn topstories() -> Json<TopStories> {
 }
 
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
+/// Schema used to save stories to cache
 pub struct CacheStories {
     stories_ids: Vec<i32>,
 }
@@ -146,6 +156,7 @@ pub struct CacheStories {
         ),
     )]
 #[debug_handler]
+/// Create cache for top stories
 pub async fn cache() -> String {
     let request_path = format!("https://hacker-news.firebaseio.com/v0/topstories.json");
     let body = reqwest::get(request_path)
@@ -161,6 +172,7 @@ pub async fn cache() -> String {
 }
 
 #[derive(Serialize, Deserialize, utoipa::ToSchema)]
+/// Schema used to serve list of id for search word
 pub struct SearchResults {
     story_ids: Vec<u32>,
 }
@@ -177,6 +189,7 @@ pub struct SearchResults {
             )
     )]
 #[debug_handler]
+/// Returns json object for list of id of stories with given word in title  
 pub async fn search_story(Path(word): Path<String>) -> Json<SearchResults> {
     match db::search_word(word) {
         Some(ids) => Json(SearchResults {
